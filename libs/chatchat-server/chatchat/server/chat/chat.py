@@ -45,6 +45,7 @@ def create_models_from_config(configs, callbacks, stream, max_tokens):
     models = {}
     prompts = {}
     for model_type, params in configs.items():
+        params = params or {}
         model_name = params.get("model", "").strip() or get_default_llm()
         callbacks = callbacks if params.get("callbacks", False) else None
         # 判断是否传入 max_tokens 的值, 如果传入就按传入的赋值(api 调用且赋值), 如果没有传入则按照初始化配置赋值(ui 调用或 api 调用未赋值)
@@ -88,7 +89,16 @@ def create_models_chains(
         history.append({"role": "user", "content": message["query"]}) 
         history.append({"role": "assistant", "content":  message["response"]})  
 
-    intermediate_steps = loads(messages[-1].get("metadata", {}).get("intermediate_steps"), valid_namespaces=["langchain_chatchat", "agent_toolkits", "all_tools", "tool"] )  if len(messages)>0 and messages[-1].get("metadata") is not None else []
+    last_message = messages[-1] if messages else None
+    last_metadata = last_message.get("metadata") if isinstance(last_message, dict) else None
+    intermediate_steps = (
+        loads(
+            (last_metadata or {}).get("intermediate_steps"),
+            valid_namespaces=["langchain_chatchat", "agent_toolkits", "all_tools", "tool"],
+        )
+        if last_metadata is not None
+        else []
+    )
     llm = models["action_model"]
     llm.callbacks = callbacks
     connections = get_enabled_mcp_connections()
@@ -96,13 +106,16 @@ def create_models_chains(
     # 转换为MCP连接格式，支持StdioConnection和SSEConnection类型
     mcp_connections = {}
     for conn in connections:
+        conn = conn or {}
+        conn_config = conn.get("config") or {}
+        conn_args = conn.get("args") or []
         if conn["transport"] == "stdio":
             # StdioConnection类型
             mcp_connections[conn["server_name"]] = {
                 "transport": "stdio",
-                "command": conn["config"].get("command", conn["args"][0] if conn["args"] else ""),
-                "args": conn["args"][1:] if len(conn["args"]) > 1 else [],
-                "env": conn["env"],
+                "command": conn_config.get("command", conn_args[0] if conn_args else ""),
+                "args": conn_args[1:] if len(conn_args) > 1 else [],
+                "env": conn.get("env") or {},
                 "encoding": "utf-8",
                 "encoding_error_handler": "strict"
             }
@@ -110,8 +123,8 @@ def create_models_chains(
             # SSEConnection类型
             mcp_connections[conn["server_name"]] = {
                 "transport": "sse",
-                "url": conn["config"].get("url", ""),
-                "headers": conn["config"].get("headers", {}),
+                "url": conn_config.get("url", ""),
+                "headers": conn_config.get("headers", {}),
                 "timeout": conn.get("timeout", 30.0),
                 "sse_read_timeout": conn.get("sse_read_timeout", 60.0)
             }
@@ -220,7 +233,9 @@ async def chat(
 
                     try:
                         tool_output = json.loads(item.return_values["output"])
-                        if message_type := tool_output.get("message_type"):
+                        if isinstance(tool_output, dict) and (
+                            message_type := tool_output.get("message_type")
+                        ):
                             data["message_type"] = message_type
                     except:
                         ...
@@ -252,7 +267,9 @@ async def chat(
                     last_tool = {}
                     try:
                         tool_output = json.loads(item.tool_output)
-                        if message_type := tool_output.get("message_type"):
+                        if isinstance(tool_output, dict) and (
+                            message_type := tool_output.get("message_type")
+                        ):
                             data["message_type"] = message_type
                     except:
                         ...
@@ -275,10 +292,11 @@ async def chat(
                 yield ret.model_dump_json()
 
             string_intermediate_steps = dumps(agent_executor.intermediate_steps, pretty=True)
+            last_history = agent_executor.history[-1] if agent_executor.history else None
 
             update_message(
                 message_id, 
-                agent_executor.history[-1].get("content"),
+                last_history.get("content") if isinstance(last_history, dict) else None,
                 metadata = {
                     "intermediate_steps": string_intermediate_steps
                 }
@@ -288,7 +306,7 @@ async def chat(
             logger.warning("streaming progress has been interrupted by user.")
             return
         except Exception as e:
-            logger.error(f"error in chat: {e}")
+            logger.exception(f"error in chat: {e}")
             yield {"data": json.dumps({"error": str(e)})}
             return
 

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import *
 
 import httpx
+import streamlit as st
 
 from chatchat.settings import Settings
 from chatchat.server.utils import api_address, get_httpx_client, set_httpx_config, get_default_embedding
@@ -21,9 +22,9 @@ logger = build_logger()
 
 
 SPLITTER_OPTIONS = {
-    "ChineseRecursiveTextSplitter": "中文递归切分",
-    "MinerUSplitter": "PDF 语义切分（pdfplumber，兼容旧配置）",
-    "PdfplumberSemanticSplitter": "PDF 语义切分（pdfplumber）",
+    "ChineseRecursiveTextSplitter": "ChineseRecursiveTextSplitter",
+    "MinerUSplitter": "MinerUSplitter",
+    "PdfplumberSemanticSplitter": "PdfplumberSemanticSplitter",
 }
 
 
