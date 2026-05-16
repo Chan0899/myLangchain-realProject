@@ -149,6 +149,10 @@ class KBService(ABC):
                 docs_count=len(docs),
                 doc_infos=doc_infos,
             )
+            if status:
+                from chatchat.server.observe_logs import log_ingest_event
+
+                log_ingest_event(kb_file.filename)
         else:
             status = False
         return status

@@ -18,6 +18,7 @@ from chatchat.server.chat.utils import History
 from chatchat.server.knowledge_base.kb_service.base import KBServiceFactory
 from chatchat.server.knowledge_base.kb_doc_api import search_docs, search_temp_docs
 from chatchat.server.knowledge_base.utils import format_reference
+from chatchat.server.observe_logs import log_query_event
 from chatchat.server.utils import (wrap_done, get_ChatOpenAI, get_default_llm,
                                    BaseResponse, get_prompt_template, build_logger,
                                    check_embed_model, api_address
@@ -60,6 +61,9 @@ async def kb_chat(query: str = Body(..., description="用户输入", examples=["
                 return_direct: bool = Body(False, description="直接返回检索结果，不送入 LLM"),
                 request: Request = None,
                 ):
+    query_id = f"q{uuid.uuid4().hex}"
+    log_query_event(query_id)
+
     if mode == "local_kb":
         kb = KBServiceFactory.get_service_by_name(kb_name)
         if kb is None:

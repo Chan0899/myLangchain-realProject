@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import uuid
 from typing import AsyncIterable, List, Optional
 
 import nest_asyncio
@@ -15,6 +16,7 @@ from chatchat.settings import Settings
 from chatchat.server.chat.utils import History
 from chatchat.server.knowledge_base.kb_cache.faiss_cache import memo_faiss_pool
 from chatchat.server.knowledge_base.utils import KnowledgeFile
+from chatchat.server.observe_logs import log_query_event
 from chatchat.server.utils import (
     BaseResponse,
     get_ChatOpenAI,
@@ -141,6 +143,9 @@ async def file_chat(
         description="使用的prompt模板名称(在 prompt_settings.yaml 中配置)",
     ),
 ):
+    query_id = f"q{uuid.uuid4().hex}"
+    log_query_event(query_id)
+
     if knowledge_id not in memo_faiss_pool.keys():
         # return BaseResponse(code=404, msg=f"未找到临时知识库 {knowledge_id}，请先上传文件")
         return BaseResponse(
